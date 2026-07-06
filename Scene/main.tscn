@@ -7,19 +7,21 @@
 [ext_resource type="PackedScene" uid="uid://d3jmkkl3stvs6" path="res://Scene/assets/box_scene.tscn" id="5_c2iwn"]
 [ext_resource type="PackedScene" uid="uid://dxoc5iaamm1sy" path="res://Scene/assets/player_scene.tscn" id="6_3pt4j"]
 [ext_resource type="Script" uid="uid://b7slkcf2wu80a" path="res://scripts/input/InputController.gd" id="7_ow1sv"]
+[ext_resource type="PackedScene" uid="uid://bumams6fdeoo0" path="res://Scene/ui/ui.tscn" id="8_75buv"]
 
 [node name="Main" type="Node3D" unique_id=1483947697]
 
-[node name="LevelView" type="Node3D" parent="." unique_id=1085803463]
+[node name="LevelView" type="Node3D" parent="." unique_id=1085803463 node_paths=PackedStringArray("camera")]
 script = ExtResource("1_f6udf")
 wall_scene = ExtResource("2_1xcnr")
 floor_scene = ExtResource("3_ow1sv")
 target_scene = ExtResource("4_75buv")
 box_scene = ExtResource("5_c2iwn")
 player_scene = ExtResource("6_3pt4j")
+camera = NodePath("../Camera3D")
 
 [node name="Camera3D" type="Camera3D" parent="." unique_id=1100800635]
-transform = Transform3D(1, 0, 0, 0, 0.17364824, 0.9848078, 0, -0.9848078, 0.17364824, 3, 8, 7)
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 3, 9, 3)
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1518243101]
 transform = Transform3D(-0.8660254, -0.43301278, 0.25, 0, 0.49999997, 0.86602545, -0.50000006, 0.75, -0.43301266, 0, 0, 0)
@@ -28,3 +30,5 @@ shadow_enabled = true
 [node name="InputController" type="Node" parent="." unique_id=183710217]
 script = ExtResource("7_ow1sv")
 metadata/_custom_type_script = "uid://b7slkcf2wu80a"
+
+[node name="UI" parent="." unique_id=129539808 instance=ExtResource("8_75buv")]

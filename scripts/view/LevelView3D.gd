@@ -8,10 +8,24 @@ const CELL_SIZE: float = 1.0
 @export var box_scene: PackedScene
 @export var player_scene: PackedScene
 
+## Assign the gameplay Camera3D here (sibling node in main.tscn) for the
+## reject-shake feedback below. Optional — if unset, shake is skipped.
+@export var camera: Camera3D
+
+## Player-hop tuning ("jump between cells" feel instead of a flat slide).
+@export var player_hop_height: float = 0.35
+@export var player_hop_duration: float = 0.14
+
+## Invalid-move ("bumped into a wall") feedback tuning.
+@export var reject_shake_strength: float = 0.12
+@export var reject_shake_duration: float = 0.18
+@export var reject_vibration_ms: int = 60
+
 var _box_instances: Array[Node3D] = []
 var _player_instance: Node3D
 var _static_root: Node3D
 var _dynamic_root: Node3D
+var _camera_base_position: Vector3
 
 
 func _ready() -> void:
@@ -27,6 +41,10 @@ func _ready() -> void:
 	GridManager.state_changed.connect(_on_state_changed)
 	GridManager.level_won.connect(_on_level_won)
 	GridManager.level_lost.connect(_on_level_lost)
+	GridManager.move_rejected.connect(_on_move_rejected)
+
+	if camera:
+		_camera_base_position = camera.position
 
 	_build_static_geometry()
 	_build_dynamic_entities()
@@ -109,7 +127,7 @@ func _on_level_loaded() -> void:
 func _on_state_changed() -> void:
 	if _player_instance:
 		var target_pos := grid_to_world(GridManager.player_pos) + Vector3(0, 0.5, 0)
-		_tween_to(_player_instance, target_pos)
+		_hop_player(target_pos)
 
 	for i in range(GridManager.boxes.size()):
 		if i < _box_instances.size():
@@ -130,10 +148,55 @@ func _on_level_lost(_move_count: int) -> void:
 	pass
 
 
+## "Bumped into a wall" feedback: rejected moves never reach GridManager's
+## state (no state_changed/level_loaded fires), so this is the one place
+## that needs its own signal to react to an invalid move at all.
+func _on_move_rejected(_direction: int) -> void:
+	_shake_camera()
+	if OS.has_feature("mobile"):
+		Input.vibrate_handheld(reject_vibration_ms)
+
+
 func _tween_to(node: Node3D, target_pos: Vector3) -> void:
 	var tween := create_tween()
 	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tween.tween_property(node, "position", target_pos, 0.12)
+
+
+## Player-only movement feel: a parabolic hop between cells instead of a
+## flat slide. Boxes keep using _tween_to() — only the player "jumps."
+func _hop_player(target_pos: Vector3) -> void:
+	var start_pos: Vector3 = _player_instance.position
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.tween_method(
+		func(t: float) -> void:
+			var pos := start_pos.lerp(target_pos, t)
+			pos.y += sin(t * PI) * player_hop_height
+			_player_instance.position = pos,
+		0.0, 1.0, player_hop_duration
+	)
+
+
+## Short random-offset shake on the gameplay camera when a move is
+## rejected (walked/pushed into a wall or another box).
+func _shake_camera() -> void:
+	if not camera:
+		return
+
+	var tween := create_tween()
+	var shake_steps := 4
+	var step_time := reject_shake_duration / (shake_steps + 1)
+
+	for i in range(shake_steps):
+		var offset := Vector3(
+			randf_range(-reject_shake_strength, reject_shake_strength),
+			randf_range(-reject_shake_strength, reject_shake_strength),
+			0.0
+		)
+		tween.tween_property(camera, "position", _camera_base_position + offset, step_time)
+
+	tween.tween_property(camera, "position", _camera_base_position, step_time)
 
 
 func _update_box_feedback(index: int) -> void:
