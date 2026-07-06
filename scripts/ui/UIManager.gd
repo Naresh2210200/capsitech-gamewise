@@ -9,9 +9,9 @@ extends CanvasLayer
 @onready var _undo_button: Button = $HUD/UndoButton
 
 @onready var _win_overlay: Control = $WinOverlay
-@onready var _win_stars: Label = $WinOverlay/WinPanel/VBox/StarsLabel
-@onready var _win_moves_label: Label = $WinOverlay/WinPanel/VBox/MovesLabel
-@onready var _restart_button: Button = $WinOverlay/WinPanel/VBox/RestartButton
+@onready var _win_stars: Label = $WinOverlay/Dim/WinPanel/VBox/StarsLabel
+@onready var _win_moves_label: Label = $WinOverlay/Dim/WinPanel/VBox/MovesLabel
+@onready var _restart_button: Button = $WinOverlay/Dim/WinPanel/VBox/RestartButton
 
 
 func _ready() -> void:
