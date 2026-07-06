@@ -41,12 +41,16 @@ func _on_level_won(move_count: int) -> void:
 	var stars := _calculate_stars(move_count)
 	_win_stars.text = "★".repeat(stars) + "☆".repeat(3 - stars)
 	_win_moves_label.text = "Solved in %d moves (par: %d)" % [move_count, GridManager.par_moves]
+	_restart_button.text = "Next Level" if LevelManager.has_next_level() else "Play Again"
 	_win_overlay.visible = true
 
 
 func _on_restart_pressed() -> void:
 	_win_overlay.visible = false
-	GridManager.load_level_from_file(GridManager.default_level_path)
+	if LevelManager.has_next_level():
+		LevelManager.next_level()
+	else:
+		LevelManager.restart_level()
 
 
 ## 3 stars: at or under par. 2 stars: within 1.5x par. 1 star: solved at all.
