@@ -21,6 +21,10 @@ const CELL_SIZE: float = 1.0
 @export var reject_shake_duration: float = 0.18
 @export var reject_vibration_ms: int = 60
 
+# --- camera auto-fit ---------------------------------------------------
+@export var camera_padding: float = 1.5     # extra "breathing room" cells around the level
+@export var camera_fit_tween_time: float = 0.35   # set to 0.0 for an instant snap, no easing
+
 var _box_instances: Array[Node3D] = []
 var _player_instance: Node3D
 var _static_root: Node3D
@@ -46,8 +50,13 @@ func _ready() -> void:
 	if camera:
 		_camera_base_position = camera.position
 
+	# re-fit whenever the window/viewport is resized, so aspect changes
+	# (e.g. rotating a device) don't leave the level mis-framed
+	get_viewport().size_changed.connect(_fit_camera_to_level)
+
 	_build_static_geometry()
 	_build_dynamic_entities()
+	_fit_camera_to_level(false)   # snap instantly on first load, no tween
 
 
 static func grid_to_world(cell: Vector2i) -> Vector3:
@@ -116,12 +125,71 @@ func _build_dynamic_entities() -> void:
 
 
 # ---------------------------------------------------------------------------
+# camera auto-fit - re-centers & re-zooms the camera so the whole level
+# (regardless of its width/height) always fits inside the frame, the way
+# Fancade-style puzzle games frame each board.
+# ---------------------------------------------------------------------------
+
+func _fit_camera_to_level(animate: bool = true) -> void:
+	if not camera:
+		return
+
+	var grid_w := float(GridManager.width)
+	var grid_h := float(GridManager.height)
+	if grid_w <= 0.0 or grid_h <= 0.0:
+		return
+
+	# center of the grid in world space (grid_to_world uses cell * CELL_SIZE)
+	var center := Vector3(
+		(grid_w - 1) * CELL_SIZE * 0.5,
+		0.0,
+		(grid_h - 1) * CELL_SIZE * 0.5
+	)
+
+	var half_x := grid_w * CELL_SIZE * 0.5 + camera_padding
+	var half_z := grid_h * CELL_SIZE * 0.5 + camera_padding
+
+	var viewport_size := get_viewport().get_visible_rect().size
+	var aspect: float = viewport_size.x / max(viewport_size.y, 1.0)
+
+	var target_position: Vector3
+
+	if camera.projection == Camera3D.PROJECTION_ORTHOGONAL:
+		# orthogonal size defines the *vertical* half-extent visible on screen
+		var size_for_z := half_z
+		var size_for_x := half_x / aspect
+		camera.size = max(size_for_z, size_for_x) * 2.0
+		target_position = Vector3(center.x, camera.position.y, center.z)
+	else:
+		# perspective: solve for the camera height (distance straight down)
+		# that lets both axes fit inside the field of view
+		var vfov_rad := deg_to_rad(camera.fov)
+		var hfov_rad := 2.0 * atan(tan(vfov_rad * 0.5) * aspect)
+
+		var height_for_z := half_z / tan(vfov_rad * 0.5)
+		var height_for_x := half_x / tan(hfov_rad * 0.5)
+
+		var camera_height: float = max(height_for_z, height_for_x)
+		target_position = Vector3(center.x, camera_height, center.z)
+
+	if animate and camera_fit_tween_time > 0.0:
+		var tween := create_tween()
+		tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tween.tween_property(camera, "position", target_position, camera_fit_tween_time)
+		tween.finished.connect(func() -> void: _camera_base_position = camera.position)
+	else:
+		camera.position = target_position
+		_camera_base_position = target_position
+
+
+# ---------------------------------------------------------------------------
 # signal handlers - just sync visuals, no decisions made here
 # ---------------------------------------------------------------------------
 
 func _on_level_loaded() -> void:
 	_build_static_geometry()
 	_build_dynamic_entities()
+	_fit_camera_to_level()
 
 
 func _on_state_changed() -> void:
