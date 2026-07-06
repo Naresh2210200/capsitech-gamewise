@@ -1,4 +1,8 @@
 extends Node3D
+# Pure rendering layer - reads GridManager's data and draws it in 3D.
+# Never changes grid state, only reacts to signals and moves/creates meshes.
+#
+#   User Gesture -> InputController -> GridManager -> LevelView3D (this)
 
 const CELL_SIZE: float = 1.0
 
@@ -8,15 +12,11 @@ const CELL_SIZE: float = 1.0
 @export var box_scene: PackedScene
 @export var player_scene: PackedScene
 
-## Assign the gameplay Camera3D here (sibling node in main.tscn) for the
-## reject-shake feedback below. Optional — if unset, shake is skipped.
-@export var camera: Camera3D
+@export var camera: Camera3D   # for the reject-shake below, optional
 
-## Player-hop tuning ("jump between cells" feel instead of a flat slide).
 @export var player_hop_height: float = 0.35
 @export var player_hop_duration: float = 0.14
 
-## Invalid-move ("bumped into a wall") feedback tuning.
 @export var reject_shake_strength: float = 0.12
 @export var reject_shake_duration: float = 0.18
 @export var reject_vibration_ms: int = 60
@@ -50,14 +50,12 @@ func _ready() -> void:
 	_build_dynamic_entities()
 
 
-## Converts a logical grid cell (column, row) to a 3D world position.
-## Column -> X axis, Row -> Z axis, Y stays 0 (ground level).
 static func grid_to_world(cell: Vector2i) -> Vector3:
 	return Vector3(cell.x * CELL_SIZE, 0.0, cell.y * CELL_SIZE)
 
 
 # ---------------------------------------------------------------------------
-# Static geometry: walls, floor tiles, target markers — built once per level
+# static geometry - walls / floor / targets, only rebuilt on a new level
 # ---------------------------------------------------------------------------
 
 func _build_static_geometry() -> void:
@@ -66,30 +64,37 @@ func _build_static_geometry() -> void:
 
 	for y in range(GridManager.height):
 		for x in range(GridManager.width):
-			var cell := Vector2i(x, y)
-			var cell_type: int = GridManager.grid[y][x]
-			var world_pos := grid_to_world(cell)
-
-			# Every walkable cell gets a floor tile underneath it.
-			if cell_type != GridManager.CellType.WALL and floor_scene:
-				var floor_inst := floor_scene.instantiate()
-				_static_root.add_child(floor_inst)
-				floor_inst.position = world_pos
-
-			if cell_type == GridManager.CellType.WALL and wall_scene:
-				var wall_inst := wall_scene.instantiate()
-				_static_root.add_child(wall_inst)
-				wall_inst.position = world_pos + Vector3(0, 0.5, 0)
+			_place_terrain_tile(Vector2i(x, y))
 
 	for target_cell in GridManager.targets:
-		if target_scene:
-			var target_inst := target_scene.instantiate()
-			_static_root.add_child(target_inst)
-			target_inst.position = grid_to_world(target_cell) + Vector3(0, 0.20	, 0)
+		_place_target_marker(target_cell)
+
+
+func _place_terrain_tile(cell: Vector2i) -> void:
+	var cell_type: int = GridManager.grid[cell.y][cell.x]
+	var world_pos := grid_to_world(cell)
+
+	if cell_type != GridManager.CellType.WALL and floor_scene:
+		var floor_inst := floor_scene.instantiate()
+		_static_root.add_child(floor_inst)
+		floor_inst.position = world_pos
+
+	if cell_type == GridManager.CellType.WALL and wall_scene:
+		var wall_inst := wall_scene.instantiate()
+		_static_root.add_child(wall_inst)
+		wall_inst.position = world_pos + Vector3(0, 0.5, 0)
+
+
+func _place_target_marker(cell: Vector2i) -> void:
+	if not target_scene:
+		return
+	var target_inst := target_scene.instantiate()
+	_static_root.add_child(target_inst)
+	target_inst.position = grid_to_world(cell) + Vector3(0, 0.20, 0)
 
 
 # ---------------------------------------------------------------------------
-# Dynamic entities: player + boxes — repositioned every move, not rebuilt
+# dynamic entities - player + boxes, repositioned every move, not rebuilt
 # ---------------------------------------------------------------------------
 
 func _build_dynamic_entities() -> void:
@@ -111,14 +116,9 @@ func _build_dynamic_entities() -> void:
 
 
 # ---------------------------------------------------------------------------
-# Signal handlers — sync visuals to logical state (no logic decisions here)
+# signal handlers - just sync visuals, no decisions made here
 # ---------------------------------------------------------------------------
 
-## Fired only when a whole new level has been loaded (initial load, Next
-## Level, Restart, or jumping to an arbitrary level). The new level's grid
-## can be a completely different shape/size than the previous one, so we
-## tear down and rebuild everything from scratch — a tween can't fix a
-## room that's the wrong shape.
 func _on_level_loaded() -> void:
 	_build_static_geometry()
 	_build_dynamic_entities()
@@ -137,20 +137,13 @@ func _on_state_changed() -> void:
 
 
 func _on_level_won(_move_count: int) -> void:
-	# Hook for win-state visual feedback (particles, confetti, camera pan).
-	# Kept intentionally empty here — wired up once the UI layer exists.
 	pass
 
 
 func _on_level_lost(_move_count: int) -> void:
-	# Hook for deadlock visual feedback (shake, red tint, stuck-box glow).
-	# Kept intentionally empty here — UIManager handles the overlay.
 	pass
 
 
-## "Bumped into a wall" feedback: rejected moves never reach GridManager's
-## state (no state_changed/level_loaded fires), so this is the one place
-## that needs its own signal to react to an invalid move at all.
 func _on_move_rejected(_direction: int) -> void:
 	_shake_camera()
 	if OS.has_feature("mobile"):
@@ -163,8 +156,6 @@ func _tween_to(node: Node3D, target_pos: Vector3) -> void:
 	tween.tween_property(node, "position", target_pos, 0.12)
 
 
-## Player-only movement feel: a parabolic hop between cells instead of a
-## flat slide. Boxes keep using _tween_to() — only the player "jumps."
 func _hop_player(target_pos: Vector3) -> void:
 	var start_pos: Vector3 = _player_instance.position
 	var tween := create_tween()
@@ -178,8 +169,6 @@ func _hop_player(target_pos: Vector3) -> void:
 	)
 
 
-## Short random-offset shake on the gameplay camera when a move is
-## rejected (walked/pushed into a wall or another box).
 func _shake_camera() -> void:
 	if not camera:
 		return
@@ -200,8 +189,6 @@ func _shake_camera() -> void:
 
 
 func _update_box_feedback(index: int) -> void:
-	# Visual feedback when a box lands on a target (glow/color swap).
-	# MeshInstance material swap goes here once box_scene defines the mesh.
 	var box_cell: Vector2i = GridManager.boxes[index]
 	var on_target: bool = GridManager.targets.has(box_cell)
 	var box_node := _box_instances[index]
