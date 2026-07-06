@@ -177,3 +177,54 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.875, 0.875, 0.875, 1)
 theme_override_font_sizes/font_size = 32
 text = "Try Again"
+
+[node name="CreditsOverlay" type="Control" parent="." unique_id=218048853]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Dim" type="ColorRect" parent="CreditsOverlay" unique_id=510265670]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.003921569)
+
+[node name="VBox" type="VBoxContainer" parent="CreditsOverlay/Dim" unique_id=1297866927]
+layout_mode = 1
+anchors_preset = 13
+anchor_left = 0.5
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -157.5
+offset_top = 469.5
+offset_right = 157.5
+offset_bottom = 469.5
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+
+[node name="ThankYouTitle" type="Label" parent="CreditsOverlay/Dim/VBox" unique_id=1804647229]
+layout_mode = 2
+theme_override_font_sizes/font_size = 30
+text = "Thank You for Playing"
+horizontal_alignment = 1
+
+[node name="DesignedByLabel" type="Label" parent="CreditsOverlay/Dim/VBox" unique_id=209959748]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "Designed by 
+Me"
+horizontal_alignment = 1
+
+[node name="MainMenuButton" type="Button" parent="CreditsOverlay/Dim/VBox" unique_id=2118253744]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.875, 0.875, 0.875, 1)
+theme_override_font_sizes/font_size = 32
+text = "Main Menu"
