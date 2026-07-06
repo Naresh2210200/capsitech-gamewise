@@ -1,18 +1,11 @@
-class_name InputController  extends Node
-## InputController
-##
-## Sole entry point for player input. Converts raw input events —
-## keyboard (desktop/editor testing) or touch swipes (mobile) — into
-## discrete Direction enum values and forwards them to GridManager.
-##
-## This node NEVER touches grid state directly and NEVER touches
-## rendering. It only knows: "a gesture happened, ask GridManager if
-## the move is legal." This is the first stage of the required pipeline:
-##
-##   User Gesture -> InputController -> GridManager -> LevelView3D
+class_name InputController
+extends Node
+# Only job here is: turn a keypress or swipe into a Direction and hand it
+# off to GridManager. Doesn't touch grid state or rendering at all.
+#
+#   User Gesture -> InputController -> GridManager -> LevelView3D
 
-## Minimum swipe distance (pixels) before a touch drag counts as a swipe.
-@export var swipe_threshold: float = 50.0
+@export var swipe_threshold: float = 50.0   # min drag distance before it counts as a real swipe
 
 var _touch_start: Vector2 = Vector2.ZERO
 var _touch_active: bool = false
@@ -24,54 +17,70 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 # ---------------------------------------------------------------------------
-# Keyboard (desktop / editor testing)
+# keyboard - mainly for testing in the editor
 # ---------------------------------------------------------------------------
 
 func _handle_keyboard(event: InputEvent) -> void:
 	if not event is InputEventKey or not event.pressed or event.echo:
-		return
+		return   # ignore key-up and held-key repeats
 
-	var direction: int = -1
-	match event.keycode:
-		KEY_UP, KEY_W:
-			direction = GridManager.Direction.UP
-		KEY_DOWN, KEY_S:
-			direction = GridManager.Direction.DOWN
-		KEY_LEFT, KEY_A:
-			direction = GridManager.Direction.LEFT
-		KEY_RIGHT, KEY_D:
-			direction = GridManager.Direction.RIGHT
-		KEY_Z:
-			GridManager.undo()
-			return
-		_:
-			return
+	var direction := _direction_for_keycode(event.keycode)
+	if direction == -1:
+		return   # not a movement key, nothing to do
 
 	GridManager.try_move(direction)
 
 
+# separated out so _handle_keyboard doesn't have the undo special-case
+# mixed in with the movement match
+func _direction_for_keycode(keycode: int) -> int:
+	match keycode:
+		KEY_UP, KEY_W:
+			return GridManager.Direction.UP
+		KEY_DOWN, KEY_S:
+			return GridManager.Direction.DOWN
+		KEY_LEFT, KEY_A:
+			return GridManager.Direction.LEFT
+		KEY_RIGHT, KEY_D:
+			return GridManager.Direction.RIGHT
+		KEY_Z:
+			GridManager.undo()
+			return -1   # handled here, not a movement direction
+		_:
+			return -1
+
+
 # ---------------------------------------------------------------------------
-# Touch / swipe (mobile)
+# touch / swipe - this is the one that matters on an actual phone
 # ---------------------------------------------------------------------------
 
 func _handle_touch(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
-		if event.pressed:
-			_touch_start = event.position
-			_touch_active = true
-		else:
-			_touch_active = false
-
+		_on_touch(event)
 	elif event is InputEventScreenDrag and _touch_active:
-		var delta: Vector2 = event.position - _touch_start
-		if delta.length() < swipe_threshold:
-			return
+		_on_drag(event)
 
-		var direction: int
-		if abs(delta.x) > abs(delta.y):
-			direction = GridManager.Direction.RIGHT if delta.x > 0 else GridManager.Direction.LEFT
-		else:
-			direction = GridManager.Direction.DOWN if delta.y > 0 else GridManager.Direction.UP
 
-		GridManager.try_move(direction)
-		_touch_active = false   # one discrete move per swipe, no repeat until re-touch
+func _on_touch(event: InputEventScreenTouch) -> void:
+	if event.pressed:
+		_touch_start = event.position
+		_touch_active = true
+	else:
+		_touch_active = false   # finger lifted, reset for next swipe
+
+
+func _on_drag(event: InputEventScreenDrag) -> void:
+	var delta: Vector2 = event.position - _touch_start
+	if delta.length() < swipe_threshold:
+		return   # not far enough yet, keep waiting
+
+	GridManager.try_move(_direction_for_drag(delta))
+	_touch_active = false   # only want one move per swipe, not a move every frame
+
+
+# whichever axis moved further decides the direction
+func _direction_for_drag(delta: Vector2) -> int:
+	if abs(delta.x) > abs(delta.y):
+		return GridManager.Direction.RIGHT if delta.x > 0 else GridManager.Direction.LEFT
+	else:
+		return GridManager.Direction.DOWN if delta.y > 0 else GridManager.Direction.UP
