@@ -146,6 +146,8 @@ Rows may have ragged lengths — `GridManager._parse_row` pads any row shorter t
 
 ## Building the APK
 
+**Prebuilt APK:** [Download / Play on itch.io](https://nareshraj.itch.io/sabokan)
+
 1. **Project → Export...** → select the Android preset.
 2. Under **Resources → Filters to export non-resource files/folders**, ensure `levels/*.txt` is included (plain-text level files aren't bundled by default).
 3. Export → produces the `.apk` for distribution.
