@@ -31,6 +31,12 @@ var targets: Array[Vector2i] = []
 var move_count: int = 0
 var _history: Array[Dictionary] = []   # undo stack, just player pos + boxes each entry
 
+# true once level_won/level_lost fires - blocks further moves/undo until the
+# next level loads. Without this, keyboard/swipe input still reaches try_move
+# even while the win/lose overlay is fading in on top (Control mouse_filter
+# on the overlay doesn't stop keyboard input, only mouse/touch on the UI).
+var _game_over: bool = false
+
 @export var default_level_path: String = "res://levels/level_01.txt"  # loaded on startup
 @export var par_moves: int = 8   # used for star rating, doesn't affect gameplay
 
@@ -76,6 +82,7 @@ func _reset_state() -> void:
 	targets.clear()
 	_history.clear()
 	move_count = 0
+	_game_over = false
 
 
 func _longest_line(lines: Array) -> int:
@@ -128,6 +135,9 @@ func _apply_entity_for_char(ch: String, pos: Vector2i) -> void:
 # ---------------------------------------------------------------------------
 
 func try_move(direction: Direction) -> bool:
+	if _game_over:
+		return false   # level already won/lost - board is frozen until the next one loads
+
 	var delta: Vector2i = DIRECTION_VECTORS[direction]
 	var next_pos: Vector2i = player_pos + delta
 
@@ -171,12 +181,17 @@ func _finish_move() -> void:
 	move_completed.emit(move_count)
 
 	if is_win():
+		_game_over = true
 		level_won.emit(move_count)
 	elif is_deadlocked():
+		_game_over = true
 		level_lost.emit(move_count)
 
 
 func undo() -> bool:
+	if _game_over:
+		return false   # same freeze as try_move - no editing a finished board
+
 	if _history.is_empty():
 		return false
 
